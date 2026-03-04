@@ -141,7 +141,7 @@ with ToolHubClient(config) as client:
 
 ```
 ToolSummary(
-    tool_name="companies-house",
+    tool_name="company_data",
     service_url="https://...",
     description="UK Companies House data"
 )
@@ -157,7 +157,7 @@ names, types, descriptions, and examples.
 ```python
 with ToolHubClient(config) as client:
     tool = client.get_tool(
-        tool_name="companies-house",
+        tool_name="company_data",
         namespace="AcmeCorp",
         user_id="jane@acme.com",
     )
@@ -174,10 +174,10 @@ with ToolHubClient(config) as client:
 
 ```
 ToolDetails(
-    tool_name="companies-house",
+    tool_name="company_data",
     functions={
-        "search-companies": ToolFunction(
-            name="search-companies",
+        "search_companies": ToolFunction(
+            name="search_companies",
             description="Search for companies in UK Companies House",
             parameters=["query", "items_per_page", "start_index"],
             parameters_schema={
@@ -185,7 +185,7 @@ ToolDetails(
                 ...
             }
         ),
-        "fetch-company-profile": ToolFunction(...),
+        "fetch_company_profile": ToolFunction(...),
         ...
     }
 )
@@ -200,8 +200,8 @@ ToolDetails(
 ```python
 with ToolHubClient(config) as client:
     result = client.invoke_tool(
-        tool_name="companies-house",
-        function="search-companies",
+        tool_name="company_data",
+        function="search_companies",
         parameters={
             "query": "Acme Ltd",
             "items_per_page": 10,
@@ -214,17 +214,19 @@ with ToolHubClient(config) as client:
 print(result)
 ```
 
-The `function` argument maps to the tool's endpoint name (underscores replaced with
-hyphens, `get_` prefix stripped). If omitted, the tool's default function is called.
+The `function` argument uses the Python function name with underscores. The facade
+converts underscores to hyphens when routing to the tool. The `get_` prefix is also
+stripped automatically. If `function` is omitted, the tool's default endpoint is called.
 
-### Endpoint naming convention
+### Function name examples
 
-| Python function name | `function` argument |
-|---|---|
-| `search_companies` | `"search-companies"` |
-| `fetch_company_profile` | `"fetch-company-profile"` |
-| `get_ratios` | `"ratios"` (strip `get_`) |
-| `execute_python` | `"execute-python"` |
+| Tool | `function` argument | Calls endpoint |
+|---|---|---|
+| `company_data` | `"search_companies"` | `/search-companies` |
+| `company_data` | `"fetch_company_profile"` | `/fetch-company-profile` |
+| `accounting` | `"get_ratios"` | `/ratios` (strips `get_`) |
+| `code_execution` | `"execute_python"` | `/execute-python` |
+| `web_search` | `"search"` | `/search` |
 
 ---
 
@@ -237,8 +239,8 @@ from covecta_tools import ToolHubClient, ToolHubConfig
 
 with ToolHubClient(config) as client:
     result = client.invoke_tool(
-        tool_name="companies-house",
-        function="search-companies",
+        tool_name="company_data",
+        function="search_companies",
         parameters={
             "query": "OpenAI",
             "items_per_page": 5,
@@ -257,8 +259,8 @@ with ToolHubClient(config) as client:
 ```python
 with ToolHubClient(config) as client:
     profile = client.invoke_tool(
-        tool_name="companies-house",
-        function="fetch-company-profile",
+        tool_name="company_data",
+        function="fetch_company_profile",
         parameters={"company_number": "12345678"},
         namespace="AcmeCorp",
         user_id="jane@acme.com",
@@ -284,7 +286,7 @@ else:
 ```python
 with ToolHubClient(config) as client:
     result = client.invoke_tool(
-        tool_name="websearch",
+        tool_name="web_search",
         function="search",
         parameters={
             "query": "Python async best practices 2025",
@@ -306,8 +308,8 @@ with ToolHubClient(config) as client:
 ```python
 with ToolHubClient(config) as client:
     result = client.invoke_tool(
-        tool_name="code-execution",
-        function="execute-python",
+        tool_name="code_execution",
+        function="execute_python",
         parameters={
             "code": "import math\nprint(math.pi ** 2)",
         },
@@ -382,8 +384,8 @@ from covecta_tools.exceptions import (
 with ToolHubClient(config) as client:
     try:
         result = client.invoke_tool(
-            tool_name="companies-house",
-            function="fetch-company-profile",
+            tool_name="company_data",
+            function="fetch_company_profile",
             parameters={"company_number": "12345678"},
             namespace="AcmeCorp",
         )
@@ -431,7 +433,7 @@ records. It is echoed back in the `X-Correlation-ID` response header.
 import uuid
 
 result = client.invoke_tool(
-    tool_name="websearch",
+    tool_name="web_search",
     function="search",
     parameters={"query": "Python asyncio"},
     namespace="AcmeCorp",
@@ -447,8 +449,8 @@ return the cached response immediately with `X-Idempotent-Replay: true`.
 
 ```python
 result = client.invoke_tool(
-    tool_name="companies-house",
-    function="fetch-company-profile",
+    tool_name="company_data",
+    function="fetch_company_profile",
     parameters={"company_number": "12345678"},
     namespace="AcmeCorp",
     idempotency_key="fetch-12345678-2026-03-04",
@@ -490,12 +492,12 @@ with ToolHubClient(config) as client:
     tools = client.list_tools(namespace="AcmeCorp", user_id="jane@acme.com")
 
     # Inspect a tool's functions and parameters
-    tool = client.get_tool("companies-house", namespace="AcmeCorp")
+    tool = client.get_tool("company_data", namespace="AcmeCorp")
 
     # Invoke a tool function
     result = client.invoke_tool(
-        tool_name="companies-house",
-        function="search-companies",
+        tool_name="company_data",
+        function="search_companies",
         parameters={"query": "Acme", "items_per_page": 10, "start_index": 0},
         namespace="AcmeCorp",
         user_id="jane@acme.com",

@@ -424,38 +424,71 @@ found — it is not raised for missing records.
 
 ## Correlation and Idempotency
 
+Both features are query parameters on the facade's invoke endpoint
+(`POST /tools/{tool_name}/invoke`). The SDK's `invoke_tool` method does not yet
+expose them directly, so use `_make_request` to pass them as extra query params,
+or build the raw HTTP call yourself using the auth headers from `ToolHubClient`.
+
 ### Correlation ID
 
-Pass a `correlation_id` to trace a request end-to-end across logs and consumption
-records. It is echoed back in the `X-Correlation-ID` response header.
+`correlation_id` (max 128 chars) is a caller-supplied trace ID. The facade echoes
+it back in the `X-Correlation-ID` response header and stores it in every consumption
+record, making it easy to find all logs for a given request across services.
 
 ```python
 import uuid
 
-result = client.invoke_tool(
-    tool_name="web_search",
-    function="search",
-    parameters={"query": "Python asyncio"},
-    namespace="AcmeCorp",
-    correlation_id=str(uuid.uuid4()),   # or use your own trace ID
-)
+# Pass via _make_request (internal but stable)
+with ToolHubClient(config) as client:
+    result = client._make_request(
+        "POST",
+        "/tools/web_search/invoke",
+        namespace="AcmeCorp",
+        user_id="jane@acme.com",
+        params={
+            "method": "search",
+            "correlation_id": str(uuid.uuid4()),
+        },
+        json_data={"parameters": {"query": "Python asyncio"}},
+    )
 ```
+
+Use your existing trace ID (e.g. from your web framework's request context) rather
+than generating a new UUID, so the Tool Hub call is linked to the wider transaction.
 
 ### Idempotency key
 
-To safely retry a request without risk of double-execution, supply an
-`idempotency_key`. Repeated calls with the same key and payload within 60 seconds
-return the cached response immediately with `X-Idempotent-Replay: true`.
+`idempotency_key` (max 256 chars) deduplicates requests. If the facade receives
+two calls with the same key and the same request body within 60 seconds, the second
+call returns the cached result immediately without executing the tool again. The
+response includes `X-Idempotent-Replay: true` to signal a replay.
+
+This is safe to use when retrying on network errors — you will never double-execute
+a tool call that already succeeded.
 
 ```python
-result = client.invoke_tool(
-    tool_name="company_data",
-    function="fetch_company_profile",
-    parameters={"company_number": "12345678"},
-    namespace="AcmeCorp",
-    idempotency_key="fetch-12345678-2026-03-04",
-)
+# Construct a stable key from the inputs
+idem_key = f"fetch_company_profile:{company_number}:{date.today()}"
+
+with ToolHubClient(config) as client:
+    result = client._make_request(
+        "POST",
+        "/tools/company_data/invoke",
+        namespace="AcmeCorp",
+        user_id="jane@acme.com",
+        params={
+            "method": "fetch_company_profile",
+            "idempotency_key": idem_key,
+        },
+        json_data={"parameters": {"company_number": company_number}},
+    )
 ```
+
+Key design guidance:
+- Include all inputs that determine the result (tool, function, key parameters)
+- Include a time component (e.g. today's date) to prevent stale replays
+- Keep it human-readable so it appears usefully in logs
+- Do **not** use a random UUID — a random key defeats the purpose
 
 ---
 
@@ -467,7 +500,7 @@ result = client.invoke_tool(
 - [ ] Not-found results (`status == "Not found"`) handled as a valid outcome, not an error
 - [ ] `ToolHubClient` used as a context manager or `client.close()` called on shutdown
 - [ ] One `ToolHubClient` instance reused across requests (connection pooling)
-- [ ] `correlation_id` populated from your own request trace ID for observability
+- [ ] `correlation_id` passed as a query parameter on invoke calls, sourced from your own request trace ID
 
 ---
 

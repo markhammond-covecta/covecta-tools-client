@@ -424,11 +424,6 @@ found — it is not raised for missing records.
 
 ## Correlation and Idempotency
 
-Both features are query parameters on the facade's invoke endpoint
-(`POST /tools/{tool_name}/invoke`). The SDK's `invoke_tool` method does not yet
-expose them directly, so use `_make_request` to pass them as extra query params,
-or build the raw HTTP call yourself using the auth headers from `ToolHubClient`.
-
 ### Correlation ID
 
 `correlation_id` (max 128 chars) is a caller-supplied trace ID. The facade echoes
@@ -438,18 +433,14 @@ record, making it easy to find all logs for a given request across services.
 ```python
 import uuid
 
-# Pass via _make_request (internal but stable)
 with ToolHubClient(config) as client:
-    result = client._make_request(
-        "POST",
-        "/tools/web_search/invoke",
+    result = client.invoke_tool(
+        tool_name="web_search",
+        function="search",
+        parameters={"query": "Python asyncio"},
         namespace="AcmeCorp",
         user_id="jane@acme.com",
-        params={
-            "method": "search",
-            "correlation_id": str(uuid.uuid4()),
-        },
-        json_data={"parameters": {"query": "Python asyncio"}},
+        correlation_id=str(uuid.uuid4()),
     )
 ```
 
@@ -467,20 +458,18 @@ This is safe to use when retrying on network errors — you will never double-ex
 a tool call that already succeeded.
 
 ```python
-# Construct a stable key from the inputs
+from datetime import date
+
 idem_key = f"fetch_company_profile:{company_number}:{date.today()}"
 
 with ToolHubClient(config) as client:
-    result = client._make_request(
-        "POST",
-        "/tools/company_data/invoke",
+    result = client.invoke_tool(
+        tool_name="company_data",
+        function="fetch_company_profile",
+        parameters={"company_number": company_number},
         namespace="AcmeCorp",
         user_id="jane@acme.com",
-        params={
-            "method": "fetch_company_profile",
-            "idempotency_key": idem_key,
-        },
-        json_data={"parameters": {"company_number": company_number}},
+        idempotency_key=idem_key,
     )
 ```
 
@@ -489,6 +478,22 @@ Key design guidance:
 - Include a time component (e.g. today's date) to prevent stale replays
 - Keep it human-readable so it appears usefully in logs
 - Do **not** use a random UUID — a random key defeats the purpose
+
+### Cache override
+
+Pass `nocache=True` to bypass the response cache and force a fresh tool invocation.
+Useful when you need the latest data and can tolerate the extra latency.
+
+```python
+with ToolHubClient(config) as client:
+    result = client.invoke_tool(
+        tool_name="company_data",
+        function="fetch_company_profile",
+        parameters={"company_number": "12345678"},
+        namespace="AcmeCorp",
+        nocache=True,
+    )
+```
 
 ---
 
@@ -500,7 +505,7 @@ Key design guidance:
 - [ ] Not-found results (`status == "Not found"`) handled as a valid outcome, not an error
 - [ ] `ToolHubClient` used as a context manager or `client.close()` called on shutdown
 - [ ] One `ToolHubClient` instance reused across requests (connection pooling)
-- [ ] `correlation_id` passed as a query parameter on invoke calls, sourced from your own request trace ID
+- [ ] `correlation_id` sourced from your own request trace ID on every `invoke_tool` call
 
 ---
 

@@ -457,7 +457,10 @@ class ToolHubClient:
         parameters: Dict[str, Any],
         namespace: str,
         user_id: Optional[str] = None,
-        function: Optional[str] = None
+        function: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        nocache: bool = False,
     ) -> Dict[str, Any]:
         """
         Invoke a tool.
@@ -468,6 +471,12 @@ class ToolHubClient:
             namespace: Tenant namespace
             user_id: End-user making the request
             function: Specific function to call (optional)
+            correlation_id: Caller-supplied trace ID (max 128 chars); echoed in
+                X-Correlation-ID response header and stored in consumption records
+            idempotency_key: Deduplication key (max 256 chars); identical key +
+                payload within 60 s returns the cached response without re-invoking
+                the tool. Response includes X-Idempotent-Replay: true on a replay.
+            nocache: If True, bypass the response cache for this request
 
         Returns:
             Tool execution result
@@ -478,9 +487,15 @@ class ToolHubClient:
         except AttributeError:
             json_data = request_body.dict()
 
-        params = {}
+        params: Dict[str, Any] = {}
         if function:
             params["method"] = function
+        if correlation_id:
+            params["correlation_id"] = correlation_id
+        if idempotency_key:
+            params["idempotency_key"] = idempotency_key
+        if nocache:
+            params["nocache"] = "true"
 
         return self._make_request(
             "POST", f"/tools/{tool_name}/invoke",

@@ -50,7 +50,7 @@ Your App                   Cognito                  Tool Hub Facade
 
 Before writing any code, a Covecta administrator must complete the following:
 
-### 1a. Create a Cognito App Client
+### Create a Cognito App Client
 
 The administrator creates an App Client in the Covecta User Pool with the
 `client_credentials` grant and the required scopes:
@@ -63,7 +63,7 @@ The administrator provides you with:
 - `COGNITO_CLIENT_SECRET` — e.g. `abc123...`
 - `COGNITO_TOKEN_URL` — e.g. `https://covecta-dev.auth.eu-west-1.amazoncognito.com/oauth2/token`
 
-### 1b. Generate an RSA-2048 Key Pair
+### Generate an RSA-2048 Key Pair
 
 Run the key generation script (requires AWS credentials with DynamoDB write access):
 
@@ -91,7 +91,7 @@ python scripts/generate_client_keys.py \
     --output my-app-private.pem
 ```
 
-### 1c. Authorize the Client for a Namespace
+### Authorize the Client for a Namespace
 
 The administrator writes a record to the `dev-covecta-client-tenants` DynamoDB table
 authorizing `my-app` to access the `AcmeCorp` namespace:

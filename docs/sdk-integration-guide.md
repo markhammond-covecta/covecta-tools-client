@@ -17,13 +17,26 @@ an RSA signing key, and namespace authorization in place.
 
 ---
 
-## Installation
+## Getting the SDK
+
+Clone the client SDK repository and copy `covecta_tools/` into your project, or add
+the cloned directory to your Python path:
 
 ```bash
-pip install covecta-tools
+git clone https://github.com/markhammond-covecta/covecta-tools-client.git
 ```
 
-Required dependencies (installed automatically):
+Then install the required dependencies:
+
+```bash
+pip install requests pydantic PyJWT cryptography
+```
+
+Or with the included requirements file:
+
+```bash
+pip install -r covecta-tools-client/requirements.txt
+```
 
 | Package | Purpose |
 |---|---|

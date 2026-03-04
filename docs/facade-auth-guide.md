@@ -113,19 +113,22 @@ The client cannot access any namespace that does not appear in this table.
 
 ---
 
-## Step 2 — Install Dependencies
+## Step 2 — Get the SDK
+
+Clone the client SDK repository:
 
 ```bash
-pip install PyJWT cryptography requests
+git clone https://github.com/markhammond-covecta/covecta-tools-client.git
 ```
 
-Or if using the Covecta SDK:
+Then install dependencies:
 
 ```bash
-pip install covecta-tools
+pip install -r covecta-tools-client/requirements.txt
 ```
 
-The SDK bundles everything and handles token refresh automatically.
+This installs `requests`, `pydantic`, `PyJWT`, and `cryptography`. The SDK handles
+Cognito token refresh and assertion signing automatically.
 
 ---
 

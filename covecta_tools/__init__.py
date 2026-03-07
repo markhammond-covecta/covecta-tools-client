@@ -36,6 +36,7 @@ from covecta_tools.models import (
     ToolFunction,
     FunctionParameter,
     InvokeToolRequest,
+    TemplateSummary,
 )
 
 __all__ = [
@@ -60,6 +61,7 @@ __all__ = [
     "ToolFunction",
     "FunctionParameter",
     "InvokeToolRequest",
+    "TemplateSummary",
 
     # Deprecated aliases
     "TenantToolHubClient",

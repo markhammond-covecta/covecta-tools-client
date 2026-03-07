@@ -61,6 +61,18 @@ class ToolDetails(BaseModel):
     )
 
 
+class TemplateSummary(BaseModel):
+    """Summary information about a saved template"""
+
+    template_name: str = Field(..., description="The name of the template")
+    description: str = Field("", description="Description of the template")
+    docstring: str = Field("", description="Full docstring for the template")
+    tool: str = Field("", description="The tool this template invokes")
+    method: str = Field("", description="The tool method this template invokes")
+    category: str = Field("Other", description="Template category for grouping")
+    input_schema: dict = Field(default_factory=dict, description="JSON schema for template input data")
+
+
 class InvokeToolRequest(BaseModel):
     """Request model for invoking a tool"""
     

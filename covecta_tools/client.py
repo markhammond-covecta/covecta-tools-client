@@ -40,7 +40,7 @@ from covecta_tools.exceptions import (
     CovectaToolsTimeoutError,
     CovectaToolsBadGatewayError,
 )
-from covecta_tools.models import ToolSummary, ToolDetails, InvokeToolRequest
+from covecta_tools.models import ToolSummary, ToolDetails, InvokeToolRequest, TemplateSummary
 
 logger = logging.getLogger(__name__)
 
@@ -502,6 +502,83 @@ class ToolHubClient:
             namespace=namespace, user_id=user_id,
             params=params or None,
             json_data=json_data,
+        )
+
+    def list_templates(
+        self,
+        namespace: str,
+        user_id: Optional[str] = None
+    ) -> List[TemplateSummary]:
+        """
+        List templates available in a namespace.
+
+        Args:
+            namespace: Tenant namespace
+            user_id: End-user making the request (for audit)
+
+        Returns:
+            List of TemplateSummary objects
+        """
+        response = self._make_request(
+            "GET", "/templates",
+            namespace=namespace, user_id=user_id
+        )
+        templates_data = response.get("templates", [])
+        return [TemplateSummary(**t) for t in templates_data]
+
+    def get_template(
+        self,
+        template_name: str,
+        namespace: str,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get a template definition.
+
+        Args:
+            template_name: Name of the template
+            namespace: Tenant namespace
+            user_id: End-user making the request (for audit)
+
+        Returns:
+            Template definition as a dict
+        """
+        return self._make_request(
+            "GET", f"/templates/{template_name}",
+            namespace=namespace, user_id=user_id
+        )
+
+    def invoke_template(
+        self,
+        template_name: str,
+        input_data: Dict[str, Any],
+        namespace: str,
+        user_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Invoke a saved template with input data.
+
+        Args:
+            template_name: Name of the template to invoke
+            input_data: Input data for the template parameters
+            namespace: Tenant namespace
+            user_id: End-user making the request (for audit)
+            correlation_id: Caller-supplied trace ID (max 128 chars)
+            idempotency_key: Deduplication key (max 256 chars)
+
+        Returns:
+            Template execution result
+        """
+        return self.invoke_tool(
+            tool_name=template_name,
+            parameters=input_data,
+            namespace=namespace,
+            user_id=user_id,
+            function="invoke",
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
         )
 
     def close(self):

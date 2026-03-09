@@ -77,6 +77,9 @@ class ToolHubConfig:
     signing_private_key: str  # PEM-encoded RSA private key
     signing_key_id: str       # Key ID registered in Tool Hub (kid header)
 
+    # Optional: direct registry Lambda URL for admin operations (namespace management)
+    registry_url: str = ''
+
     # Optional settings
     token_scopes: str = "covecta-api/tools.read covecta-api/tools.invoke"
     request_timeout: float = 30.0
@@ -580,6 +583,108 @@ class ToolHubClient:
             correlation_id=correlation_id,
             idempotency_key=idempotency_key,
         )
+
+    # =========================================================================
+    # Namespace Management (Registry Direct)
+    # =========================================================================
+
+    def _registry_request(self, method: str, path: str, **kwargs) -> Dict[str, Any]:
+        """Make a SigV4-signed request to the registry Lambda.
+
+        Args:
+            method: HTTP method.
+            path: URL path (appended to registry_url).
+            **kwargs: Passed to requests.request().
+
+        Returns:
+            Parsed JSON response.
+
+        Raises:
+            CovectaToolsException: If registry_url is not configured.
+        """
+        if not self.config.registry_url:
+            raise CovectaToolsException(
+                message="registry_url must be configured for namespace management"
+            )
+        url = f"{self.config.registry_url.rstrip('/')}{path}"
+        try:
+            from aws.sigv4_request import sigv4_request
+            response = sigv4_request(method, url, **kwargs)
+        except ImportError:
+            # Fall back to unsigned request (for local development)
+            response = self._session.request(
+                method, url, timeout=self.config.request_timeout, **kwargs
+            )
+        return self._handle_response(response)
+
+    def create_namespace(
+        self,
+        namespace: str,
+        description: str = '',
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a new namespace with automatic security provisioning.
+
+        Args:
+            namespace: Unique namespace identifier.
+            description: Purpose / notes.
+            metadata: Arbitrary key-value metadata.
+
+        Returns:
+            Namespace record with credentials (one-time only).
+        """
+        body = {
+            'namespace': namespace,
+            'description': description,
+            'metadata': metadata or {},
+        }
+        return self._registry_request('POST', '/namespaces', json=body)
+
+    def list_namespaces(self) -> List[Dict[str, Any]]:
+        """List all provisioned namespaces.
+
+        Returns:
+            List of namespace records.
+        """
+        result = self._registry_request('GET', '/namespaces')
+        return result.get('namespaces', [])
+
+    def get_namespace(self, namespace: str) -> Dict[str, Any]:
+        """Get namespace detail including tool count.
+
+        Args:
+            namespace: Namespace identifier.
+
+        Returns:
+            Namespace record.
+        """
+        return self._registry_request('GET', f'/namespaces/{namespace}')
+
+    def update_namespace(self, namespace: str, **fields) -> Dict[str, Any]:
+        """Update namespace metadata.
+
+        Args:
+            namespace: Namespace identifier.
+            **fields: Fields to update (description, metadata).
+
+        Returns:
+            Updated namespace record.
+        """
+        body = {k: v for k, v in fields.items() if v is not None}
+        return self._registry_request('PUT', f'/namespaces/{namespace}', json=body)
+
+    def delete_namespace(self, namespace: str) -> Dict[str, Any]:
+        """Delete a namespace and cascade-clean security artifacts.
+
+        The namespace must have no tools assigned.
+
+        Args:
+            namespace: Namespace identifier.
+
+        Returns:
+            Deletion confirmation with cleanup summary.
+        """
+        return self._registry_request('DELETE', f'/namespaces/{namespace}')
 
     def close(self):
         """Close the HTTP session."""

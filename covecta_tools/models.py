@@ -73,6 +73,17 @@ class TemplateSummary(BaseModel):
     input_schema: dict = Field(default_factory=dict, description="JSON schema for template input data")
 
 
+class NamespaceInfo(BaseModel):
+    """Namespace metadata returned by the registry."""
+
+    namespace: str = Field(..., description="Unique namespace identifier")
+    description: str = Field('', description="Purpose or notes")
+    created_at: str = Field('', description="ISO-8601 creation timestamp")
+    updated_at: str = Field('', description="ISO-8601 last-update timestamp")
+    tool_count: int = Field(0, description="Number of tools currently assigned")
+    metadata: dict = Field(default_factory=dict, description="Arbitrary key-value metadata")
+
+
 class InvokeToolRequest(BaseModel):
     """Request model for invoking a tool"""
     

@@ -12,8 +12,8 @@ assertion signing, and HTTP transport. Your application code calls high-level me
 (`list_tools`, `get_tool`, `invoke_tool`) without managing tokens or headers directly.
 
 Before starting, complete the authentication setup described in
-[facade-auth-guide.md](facade-auth-guide.md) — you will need a Cognito App Client,
-an RSA signing key, and namespace authorization in place.
+[Security & Access Control](security-and-access-control.md) — you will need a Cognito
+App Client, an RSA signing key, and namespace authorization in place.
 
 ---
 
@@ -334,7 +334,7 @@ with ToolHubClient(config) as client:
 ```
 
 The client must be pre-authorized for every namespace it accesses
-(see `facade-auth-guide.md`, Step 1c).
+(see [Security & Access Control](security-and-access-control.md#managing-client-access)).
 
 ---
 

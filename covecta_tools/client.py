@@ -21,10 +21,12 @@ Usage:
     tools = client.list_tools(namespace="AcmeCorp", user_id="jane@acme.com")
 """
 
+import json
 import time
 import hashlib
 import secrets
 import logging
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
@@ -84,6 +86,74 @@ class ToolHubConfig:
     token_scopes: str = "covecta-api/tools.read covecta-api/tools.invoke"
     request_timeout: float = 30.0
     assertion_validity_seconds: int = 60
+
+    @classmethod
+    def from_cli_config(cls, namespace: Optional[str] = None) -> "ToolHubConfig":
+        """Load configuration from the CLI config file (~/.toolhub/config.json).
+
+        Reads the same config file used by ``covecta auth setup``.  If a
+        *namespace* is provided, looks for a matching profile and uses its
+        credentials; otherwise uses the default (top-level) credentials.
+
+        Args:
+            namespace: If provided, select the profile whose ``namespaces``
+                list contains this value.
+
+        Returns:
+            A fully populated ToolHubConfig.
+
+        Raises:
+            FileNotFoundError: If ~/.toolhub/config.json does not exist.
+            ValueError: If required fields are missing from the config.
+        """
+        config_file = Path.home() / ".toolhub" / "config.json"
+        if not config_file.exists():
+            raise FileNotFoundError(
+                f"{config_file} not found. Run 'covecta auth setup' first."
+            )
+
+        with open(config_file) as f:
+            data = json.load(f)
+
+        # Resolve profile if namespace is provided
+        creds = data  # default: top-level credentials
+        if namespace:
+            for _name, pdata in data.get("profiles", {}).items():
+                if namespace in pdata.get("namespaces", []):
+                    # Merge: profile credentials override top-level
+                    creds = {**data, **pdata}
+                    break
+
+        api_url = creds.get("api_url", "")
+        token_url = creds.get("token_url", "")
+        client_id = creds.get("client_id", "")
+        client_secret = creds.get("client_secret", "")
+        key_id = creds.get("assertion_key_id", "")
+        key_file = creds.get("assertion_key_file", "")
+
+        if not api_url:
+            raise ValueError("api_url not found in config. Run 'covecta auth setup'.")
+        if not token_url:
+            raise ValueError("token_url not found in config. Run 'covecta auth setup'.")
+
+        # Load private key PEM from file
+        private_key_pem = ""
+        if key_file:
+            key_path = Path(key_file).expanduser().resolve()
+            if key_path.exists():
+                private_key_pem = key_path.read_text()
+            else:
+                logger.warning(f"Assertion key file not found: {key_path}")
+
+        return cls(
+            api_url=api_url,
+            cognito_token_url=token_url,
+            client_id=client_id,
+            client_secret=client_secret,
+            signing_private_key=private_key_pem,
+            signing_key_id=key_id,
+            registry_url=creds.get("registry_url", ""),
+        )
 
 
 # =============================================================================
@@ -685,6 +755,98 @@ class ToolHubClient:
             Deletion confirmation with cleanup summary.
         """
         return self._registry_request('DELETE', f'/namespaces/{namespace}')
+
+    # =========================================================================
+    # Client access management
+    # =========================================================================
+
+    def list_clients(self, namespace: str) -> List[Dict[str, Any]]:
+        """List all clients authorized for a namespace.
+
+        Args:
+            namespace: Namespace identifier.
+
+        Returns:
+            List of client records (without credentials).
+        """
+        result = self._registry_request('GET', f'/namespaces/{namespace}/clients')
+        return result.get('clients', [])
+
+    def grant_access(
+        self,
+        namespace: str,
+        name: str,
+        role: str = 'consumer',
+        permissions: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Grant a new client access to a namespace.
+
+        Args:
+            namespace: Namespace to grant access to.
+            name: Human-readable label for the client.
+            role: One of 'owner', 'admin', 'consumer'.
+            permissions: Explicit permission overrides (optional).
+
+        Returns:
+            Dict with client_id, role, permissions, and one-time credentials.
+        """
+        body: Dict[str, Any] = {'name': name, 'role': role}
+        if permissions:
+            body['permissions'] = permissions
+        return self._registry_request('POST', f'/namespaces/{namespace}/clients', json=body)
+
+    def revoke_access(self, namespace: str, client_id: str) -> Dict[str, Any]:
+        """Revoke a client's access to a namespace.
+
+        Args:
+            namespace: Namespace identifier.
+            client_id: Client to revoke.
+
+        Returns:
+            Revocation confirmation.
+        """
+        return self._registry_request('DELETE', f'/namespaces/{namespace}/clients/{client_id}')
+
+    def update_client(
+        self,
+        namespace: str,
+        client_id: str,
+        role: Optional[str] = None,
+        permissions: Optional[List[str]] = None,
+        name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update a client's role or permissions.
+
+        Args:
+            namespace: Namespace identifier.
+            client_id: Client to update.
+            role: New role (optional).
+            permissions: New explicit permissions (optional).
+            name: New display name (optional).
+
+        Returns:
+            Updated client record.
+        """
+        body: Dict[str, Any] = {}
+        if role is not None:
+            body['role'] = role
+        if permissions is not None:
+            body['permissions'] = permissions
+        if name is not None:
+            body['name'] = name
+        return self._registry_request('PATCH', f'/namespaces/{namespace}/clients/{client_id}', json=body)
+
+    def rotate_client_keys(self, namespace: str, client_id: str) -> Dict[str, Any]:
+        """Rotate signing keys for a client.
+
+        Args:
+            namespace: Namespace identifier.
+            client_id: Client whose keys to rotate.
+
+        Returns:
+            Dict with new signing_key_id and signing_private_key_pem.
+        """
+        return self._registry_request('POST', f'/namespaces/{namespace}/clients/{client_id}/rotate-keys')
 
     def close(self):
         """Close the HTTP session."""
